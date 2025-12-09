@@ -1,0 +1,106 @@
+const { lerFicheiro, gravarFicheiro } = require('../shared/functions');
+
+module.exports = function (app) {
+
+    // Função auxiliar para encontrar o índice pelo código
+    function encontrarIndicePorCod(pratos, cod) {
+        return pratos.findIndex(prato => prato.Cod === cod);
+    }
+
+    // GET / (Devolve todos)
+    app.get('/', (req, res) => {
+        const pratos = lerFicheiro();
+        res.status(200).send(pratos);
+    });
+
+    // GET /:codigo (Devolve por CÓDIGO)
+    app.get('/:codigo', (req, res) => {
+        const pratos = lerFicheiro();
+        const cod = req.params.codigo;
+        const prato = pratos.find(p => p.Cod === cod);
+
+        if (prato) {
+            res.status(200).send(prato);
+        } else {
+            res.status(400).send('Erro 400: Prato não encontrado com o código fornecido.');
+        }
+    });
+
+    // POST / (Adiciona novo prato)
+    app.post('/', (req, res) => {
+        const { Cod, nome, categoria, tipo } = req.body;
+        const pratos = lerFicheiro();
+
+        if (Cod && nome && categoria && tipo) {
+            // Verifica se o código já existe
+            if (pratos.some(p => p.Cod === Cod)) {
+                return res.status(400).send('Erro 400: Já existe um prato com este código.');
+            }
+            
+            pratos.push({ Cod, nome, categoria, tipo });
+
+            if (gravarFicheiro(pratos)) {
+                res.status(200).send(pratos);
+            } else {
+                res.status(400).send('Erro 400: Falha ao gravar no ficheiro.');
+            }
+        } else {
+            res.status(400).send('Erro 400: Campos obrigatórios (Cod, nome, categoria, tipo) em falta.');
+        }
+    });
+
+    // PATCH /:codigo (Atualiza campos parciais por CÓDIGO)
+    app.patch('/:codigo', (req, res) => {
+        const pratos = lerFicheiro();
+        const cod = req.params.codigo;
+        const index = encontrarIndicePorCod(pratos, cod);
+
+        if (index !== -1) {
+            const pratoAntigo = pratos[index];
+            // Atualiza apenas os campos que vêm no body
+            pratos[index] = { 
+                ...pratoAntigo, 
+                ...req.body,
+                Cod: pratoAntigo.Cod // Garante que o Cod não é alterado (melhor prática PATCH)
+            }; 
+
+            if (gravarFicheiro(pratos)) {
+                res.status(200).send(pratos[index]);
+            } else {
+                res.status(400).send('Erro 400: Falha ao gravar no ficheiro.');
+            }
+        } else {
+            res.status(400).send('Erro 400: Código do Prato inválido ou não encontrado.');
+        }
+    });
+
+    // DELETE /:codigo (Elimina por CÓDIGO)
+    app.delete('/:codigo', (req, res) => {
+        const pratos = lerFicheiro();
+        const cod = req.params.codigo;
+        const index = encontrarIndicePorCod(pratos, cod);
+
+        if (index !== -1) {
+            const pratoRemovido = pratos.splice(index, 1);
+            
+            if (gravarFicheiro(pratos)) {
+                res.status(200).send(`Prato removido: ${pratoRemovido[0].nome}. Lista atualizada.`);
+            } else {
+                 res.status(400).send('Erro 400: Falha ao gravar no ficheiro.');
+            }
+        } else {
+            res.status(400).send('Erro 400: Código do Prato inválido ou não encontrado.');
+        }
+    });
+
+    // DELETE / (Elimina todos)
+    app.delete('/', (req, res) => {
+        const pratos = [];
+        
+        if (gravarFicheiro(pratos)) {
+            res.status(200).send('Todos os pratos foram eliminados.');
+        } else {
+             res.status(400).send('Erro 400: Falha ao gravar no ficheiro.');
+        }
+    });
+};
